@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ubuntu:bionic
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: |
+        dpkg --add-architecture i386
+        apt-get update
+        apt-get upgrade -y
+
+        apt-get install -y \
+          build-essential \
+          wget \
+          fuse \
+          gcc-multilib \
+          flex \
+          bison \
+          libx11-dev:i386 \
+          libfreetype6-dev:i386 \
+          libfontconfig1-dev:i386 \
+          libxcursor-dev:i386 \
+          libxi-dev:i386 \
+          libxshmfence-dev:i386 \
+          libxxf86vm-dev:i386 \
+          libxrandr-dev:i386 \
+          libxinerama-dev:i386 \
+          libxcomposite-dev:i386 \
+          libglu1-mesa-dev:i386 \
+          libosmesa6-dev:i386 \
+          libdbus-1-dev:i386 \
+          libncurses5-dev:i386  \
+          libv4l-dev:i386 \
+          libgphoto2-dev:i386 \
+          liblcms2-dev:i386 \
+          libgstreamer-plugins-base1.0-dev:i386 \
+          libgsm1-dev:i386 \
+          libtiff5-dev:i386 \
+          libmpg123-dev:i386 \
+          libopenal-dev:i386 \
+          libgnutls28-dev:i386 \
+          libjpeg-dev:i386 \
+          libpulse-dev:i386 \
+          libxml2-dev:i386 \
+          libxslt-dev:i386
+      shell: bash
+    - name: Download wine
+      run: |
+        wget https://dl.winehq.org/wine/source/5.x/wine-5.7.tar.xz
+        tar xf wine-5.7.tar.xz
+      shell: bash
+    - name: Build wine
+      run: |
+        cd wine-5.7
+        patch -p0 -i $GITHUB_WORKSPACE/patches/wineldpreload.patch
+        patch -p0 -i $GITHUB_WORKSPACE/patches/line-hack.patch
+        ./configure --disable-win64 --prefix=/opt/wine
+        make -j2
+        make install
+      shell: bash
+    - name: Build appimage
+      run: |
+        apt-get remove -y *-dev:i386
+
+        mkdir -p wine.appdir/{usr/lib,etc,lib}
+        cp -pR /opt/wine wine.appdir/
+        cp -pR /usr/lib/i386-linux-gnu wine.appdir/usr/lib/
+        cp -pR /lib/i386-linux-gnu wine.appdir/lib/
+        cp -pR /lib/ld-linux.so.2 wine.appdir/lib/
+        cp -pR /etc/fonts wine.appdir/etc
+        cp -pR $GITHUB_WORKSPACE/app-resources/* wine.appdir/
+        rm -rf wine.appdir/wine/{include,share/man}
+
+        wget https://github.com/AppImage/AppImageKit/releases/download/12/appimagetool-x86_64.AppImage
+        chmod +x appimagetool-x86_64.AppImage
+        ./appimagetool-x86_64.AppImage --appimage-extract-and-run wine.appdir $GITHUB_WORKSPACE/wine
+
+      shell: bash
+    - uses: actions/upload-artifact@v2-preview
+      with:
+        path: ${{ github.workspace }}/wine
