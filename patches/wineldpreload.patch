@@ -1,6 +1,6 @@
---- libs/wine/config.c.orig	2020-04-19 21:18:40.037195275 +0700
-+++ libs/wine/config.c	2020-04-25 09:37:20.346516834 +0700
-@@ -514,42 +514,16 @@
+--- libs/wine/config.c.orig	2020-05-09 03:18:56.000000000 +0700
++++ libs/wine/config.c	2020-05-09 13:41:26.300187762 +0700
+@@ -525,42 +525,16 @@
  /* exec a binary using the preloader if requested; helper for wine_exec_wine_binary */
  static void preloader_exec( char **argv, int use_preloader )
  {
@@ -52,3 +52,149 @@
  }
  
  /* exec a wine internal binary (either the wine loader or the wine server) */
+--- dlls/ntdll/server.c.orig	2020-05-09 13:41:37.983670482 +0700
++++ dlls/ntdll/server.c	2020-05-09 14:24:23.295027742 +0700
+@@ -120,12 +120,6 @@
+ #error Unsupported CPU
+ #endif
+ 
+-#if defined(linux) || defined(__APPLE__)
+-static const BOOL use_preloader = TRUE;
+-#else
+-static const BOOL use_preloader = FALSE;
+-#endif
+-
+ static const BOOL is_win64 = (sizeof(void *) > sizeof(int));
+ 
+ const char *build_dir = NULL;
+@@ -1235,32 +1229,9 @@
+  */
+ static void preloader_exec( char **argv )
+ {
+-    if (use_preloader)
+-    {
+-        static const char *preloader = "wine-preloader";
+-        char *p;
+-
+-        if (!(p = strrchr( argv[1], '/' ))) p = argv[1];
+-        else p++;
+-
+-        if (strlen(p) > 2 && !strcmp( p + strlen(p) - 2, "64" )) preloader = "wine64-preloader";
+-        argv[0] = malloc( p - argv[1] + strlen(preloader) + 1 );
+-        memcpy( argv[0], argv[1], p - argv[1] );
+-        strcpy( argv[0] + (p - argv[1]), preloader );
+-
+-#ifdef __APPLE__
+-        {
+-            posix_spawnattr_t attr;
+-            posix_spawnattr_init( &attr );
+-            posix_spawnattr_setflags( &attr, POSIX_SPAWN_SETEXEC | _POSIX_SPAWN_DISABLE_ASLR );
+-            posix_spawn( NULL, argv[0], NULL, &attr, argv, *_NSGetEnviron() );
+-            posix_spawnattr_destroy( &attr );
+-        }
+-#endif
+-        execv( argv[0], argv );
+-        free( argv[0] );
+-    }
+-    execv( argv[1], argv + 1 );
++    argv[0] = getenv("WINELDLIBRARY");
++    execv( argv[0], argv );
++    free( argv[0] );
+ }
+ 
+ 
+@@ -1313,32 +1284,8 @@
+     putenv( preloader_reserve );
+     putenv( socket_env );
+ 
+-    if (build_dir)
+-    {
+-        argv[1] = build_path( build_dir, is_child_64bit ? "loader/wine64" : "loader/wine" );
+-        preloader_exec( argv );
+-        return STATUS_INVALID_IMAGE_FORMAT;
+-    }
+-
+-    if ((p = strrchr( loader, '/' ))) loader = p + 1;
+-
+-    argv[1] = build_path( bin_dir, loader );
+-    preloader_exec( argv );
+-
+     argv[1] = getenv( "WINELOADER" );
+     if (argv[1]) preloader_exec( argv );
+-
+-    if ((path = getenv( "PATH" )))
+-    {
+-        for (p = strtok( strdup( path ), ":" ); p; p = strtok( NULL, ":" ))
+-        {
+-            argv[1] = build_path( p, loader );
+-            preloader_exec( argv );
+-        }
+-    }
+-
+-    argv[1] = build_path( BINDIR, loader );
+-    preloader_exec( argv );
+     return STATUS_INVALID_IMAGE_FORMAT;
+ }
+ 
+@@ -1351,39 +1298,8 @@
+ static void exec_wineserver( char **argv )
+ {
+     char *path;
+-
+-    if (build_dir)
+-    {
+-        if (!is_win64)  /* look for 64-bit server */
+-        {
+-            char *loader = realpath_dirname( build_path( build_dir, "loader/wine64" ));
+-            if (loader)
+-            {
+-                argv[0] = build_path( loader, "../server/wineserver" );
+-                execv( argv[0], argv );
+-            }
+-        }
+-        argv[0] = build_path( build_dir, "server/wineserver" );
+-        execv( argv[0], argv );
+-        return;
+-    }
+-
+-    argv[0] = build_path( bin_dir, "wineserver" );
+-    execv( argv[0], argv );
+-
+-    argv[0] = getenv( "WINESERVER" );
+-    if (argv[0]) execv( argv[0], argv );
+-
+-    if ((path = getenv( "PATH" )))
+-    {
+-        for (path = strtok( strdup( path ), ":" ); path; path = strtok( NULL, ":" ))
+-        {
+-            argv[0] = build_path( path, "wineserver" );
+-            execvp( argv[0], argv );
+-        }
+-    }
+-
+-    argv[0] = build_path( BINDIR, "wineserver" );
++    argv[0] = getenv( "WINELDLIBRARY" );
++    argv[1] = getenv( "WINESERVER" );
+     execv( argv[0], argv );
+ }
+ 
+@@ -1396,7 +1312,7 @@
+ static void start_server(void)
+ {
+     static BOOL started;  /* we only try once */
+-    char *argv[3];
++    char *argv[4];
+     static char debug[] = "-d";
+ 
+     if (!started)
+@@ -1406,8 +1322,8 @@
+         if (pid == -1) fatal_perror( "fork" );
+         if (!pid)
+         {
+-            argv[1] = TRACE_ON(server) ? debug : NULL;
+-            argv[2] = NULL;
++            argv[2] = TRACE_ON(server) ? debug : NULL;
++            argv[3] = NULL;
+             exec_wineserver( argv );
+             fatal_error( "could not exec wineserver\n" );
+         }

@@ -11,5 +11,7 @@ export QT_PLUGIN_PATH="${HERE}/usr/lib/qt4/plugins/:${HERE}/usr/lib/i386-linux-g
 export LIBGL_DRIVERS_PATH="${HERE}/usr/lib/i386-linux-gnu/dri/"
 export FONTCONFIG_PATH="${HERE}/etc/fonts"
 export WINELDLIBRARY="${HERE}/lib/ld-linux.so.2"
+export WINESERVER="${HERE}/wine/bin/wineserver"
+export WINELOADER="${HERE}/wine/bin/wine"
 EXEC=$(grep -e '^Exec=.*' "${HERE}"/*.desktop | head -n 1 | cut -d "=" -f 2 | cut -d " " -f 1)
 exec "${WINELDLIBRARY}" "${HERE}/wine/bin/${EXEC}" "$@"
