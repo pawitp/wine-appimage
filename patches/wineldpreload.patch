@@ -52,11 +52,11 @@
  }
  
  /* exec a wine internal binary (either the wine loader or the wine server) */
---- dlls/ntdll/server.c.orig	2020-05-09 13:41:37.983670482 +0700
-+++ dlls/ntdll/server.c	2020-05-09 14:24:23.295027742 +0700
-@@ -120,12 +120,6 @@
- #error Unsupported CPU
- #endif
+--- dlls/ntdll/unix/loader.c.orig	2020-05-23 01:49:34.000000000 +0700
++++ dlls/ntdll/unix/loader.c	2020-05-23 10:11:56.780295166 +0700
+@@ -92,12 +92,6 @@
+ extern char **__wine_main_argv;
+ extern char **__wine_main_environ;
  
 -#if defined(linux) || defined(__APPLE__)
 -static const BOOL use_preloader = TRUE;
@@ -66,9 +66,9 @@
 -
  static const BOOL is_win64 = (sizeof(void *) > sizeof(int));
  
- const char *build_dir = NULL;
-@@ -1235,32 +1229,9 @@
-  */
+ static int main_argc;
+@@ -523,64 +517,17 @@
+ 
  static void preloader_exec( char **argv )
  {
 -    if (use_preloader)
@@ -102,10 +102,9 @@
 +    free( argv[0] );
  }
  
- 
-@@ -1313,32 +1284,8 @@
-     putenv( preloader_reserve );
-     putenv( socket_env );
+ static NTSTATUS loader_exec( const char *loader, char **argv, int is_child_64bit )
+ {
+     char *p, *path;
  
 -    if (build_dir)
 -    {
@@ -136,7 +135,7 @@
      return STATUS_INVALID_IMAGE_FORMAT;
  }
  
-@@ -1351,39 +1298,8 @@
+@@ -644,39 +591,8 @@
  static void exec_wineserver( char **argv )
  {
      char *path;
@@ -178,22 +177,22 @@
      execv( argv[0], argv );
  }
  
-@@ -1396,7 +1312,7 @@
- static void start_server(void)
+@@ -689,7 +605,7 @@
+ static void CDECL start_server( BOOL debug )
  {
      static BOOL started;  /* we only try once */
 -    char *argv[3];
 +    char *argv[4];
-     static char debug[] = "-d";
+     static char debug_flag[] = "-d";
  
      if (!started)
-@@ -1406,8 +1322,8 @@
-         if (pid == -1) fatal_perror( "fork" );
+@@ -699,8 +615,8 @@
+         if (pid == -1) fatal_error( "fork: %s", strerror(errno) );
          if (!pid)
          {
--            argv[1] = TRACE_ON(server) ? debug : NULL;
+-            argv[1] = debug ? debug_flag : NULL;
 -            argv[2] = NULL;
-+            argv[2] = TRACE_ON(server) ? debug : NULL;
++            argv[2] = debug ? debug_flag : NULL;
 +            argv[3] = NULL;
              exec_wineserver( argv );
              fatal_error( "could not exec wineserver\n" );
