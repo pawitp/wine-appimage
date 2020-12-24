@@ -56,12 +56,12 @@ jobs:
       shell: bash
     - name: Download wine
       run: |
-        wget https://dl.winehq.org/wine/source/5.x/wine-5.9.tar.xz
-        tar xf wine-5.9.tar.xz
+        wget https://dl.winehq.org/wine/source/6.0/wine-6.0-rc3.tar.xz
+        tar xf wine-6.0-rc3.tar.xz
       shell: bash
     - name: Build wine
       run: |
-        cd wine-5.9
+        cd wine-6.0-rc3
         patch -p0 -i $GITHUB_WORKSPACE/patches/wineldpreload.patch
         patch -p0 -i $GITHUB_WORKSPACE/patches/line-hack.patch
         ./configure --disable-win64 --prefix=/opt/wine
@@ -76,7 +76,7 @@ jobs:
         cp -pR /opt/wine wine.appdir/
         cp -pR /usr/lib/i386-linux-gnu wine.appdir/usr/lib/
         cp -pR /lib/i386-linux-gnu wine.appdir/lib/
-        cp -pR /lib/ld-linux.so.2 wine.appdir/lib/
+        cp -pL /lib/ld-linux.so.2 wine.appdir/wine/bin/
         cp -pR /etc/fonts wine.appdir/etc
         cp -pR $GITHUB_WORKSPACE/app-resources/* wine.appdir/
         rm -rf wine.appdir/wine/{include,share/man}
